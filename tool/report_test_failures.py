@@ -18,6 +18,7 @@ def main(path: str) -> int:
     names: dict[int, str] = {}
     results: dict[int, str] = {}
     errors: dict[int, list[str]] = {}
+    prints: dict[int, list[str]] = {}
     totals = {"passed": 0, "failed": 0, "skipped": 0}
 
     with open(path, encoding="utf-8") as handle:
@@ -33,6 +34,12 @@ def main(path: str) -> int:
                 errors.setdefault(event["testID"], []).append(
                     (event.get("error") or "")[:600]
                 )
+            elif kind == "print" and event.get("testID") is not None:
+                # Flutter writes the real exception ("EXCEPTION CAUGHT ...") as
+                # a print; the error event itself only says "see logs above".
+                prints.setdefault(event["testID"], []).append(
+                    event.get("message", "")
+                )
             elif kind == "testDone" and not event.get("hidden", False):
                 results[event["testID"]] = event["result"]
 
@@ -40,14 +47,20 @@ def main(path: str) -> int:
         if result in ("failure", "error"):
             totals["failed"] += 1
             name = names.get(test_id, f"test {test_id}")
-            message = "\n".join(errors.get(test_id, ["(no message)"]))
+            lines = prints.get(test_id, [])[-40:] + errors.get(
+                test_id, ["(no message)"]
+            )
+            message = "\n".join(lines)[-3000:]
             print(f"::error title=Test failed::{escape(name + ': ' + message)}")
         elif result == "success":
             totals["passed"] += 1
         else:
             totals["skipped"] += 1
 
-    print(f"tests: {totals['passed']} passed, {totals['failed']} failed, {totals['skipped']} skipped")
+    print(
+        f"tests: {totals['passed']} passed, {totals['failed']} failed, "
+        f"{totals['skipped']} skipped"
+    )
     return 1 if totals["failed"] else 0
 
 
