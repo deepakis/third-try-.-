@@ -56,7 +56,7 @@ class ScriptDocument {
 final RegExp cueTagPattern = RegExp(r'\[([^\[\]]+)\]');
 
 final RegExp _camPattern = RegExp(r'^(?:CAM|CAMERA)\s*(\d+)');
-final RegExp _layoutPattern = RegExp(r'^LAYOUT\s*:\s*([A-Z]+)');
+final RegExp _layoutPattern = RegExp(r'^LAYOUT\s*:?\s*([A-Z]+)');
 
 /// Turns one tag body into a scene name using the operator's slot list.
 ///

@@ -101,7 +101,8 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
   bool _autoCreateScenes = true;
   String _activity = '';
   bool _setupRunning = false;
-  bool _setupDismissed = false;
+  /// The setup card is folded to a single line. It stays on screen either way.
+  bool _setupCollapsed = false;
   final List<SetupStep> _setupSteps = [];
   SetupReport? _setupReport;
 
@@ -308,11 +309,10 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
   }
 
   bool get _showSetupBanner =>
-      !_setupDismissed &&
-      (_setupRunning ||
-          _setupReport != null ||
-          _missingScenes.isNotEmpty ||
-          _leftoverRigScenes.isNotEmpty);
+      _setupRunning ||
+      _setupReport != null ||
+      _missingScenes.isNotEmpty ||
+      _leftoverRigScenes.isNotEmpty;
 
   /// Builds the rig from scratch: the app's own rig scenes (and the camera
   /// source it created) are cleared first, then the shots are built.
@@ -362,7 +362,7 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
               error: error,
             )
           : null;
-      if (!build) _setupDismissed = false;
+      if (!build) _setupCollapsed = false;
       // A rig that just got built is step 3: the wizard's last word is that the
       // operator is live, not that the setup finished.
       if (ok && build && _wizardStage == _WizardStage.shots) {
@@ -441,7 +441,7 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
     setState(() {
       _slots = next;
       _userPickedRig = true;
-      _setupDismissed = false;
+      _setupCollapsed = false;
       _previews.clear();
       _sourceCounts.clear();
       _programScene = null;
@@ -648,7 +648,9 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
                       onChooseShots: () => unawaited(_chooseShots()),
                       onQuickSetup: () => unawaited(_rebuildCurrentRig()),
                       onReset: () => unawaited(_resetRig()),
-                      onDismiss: () => setState(() => _setupDismissed = true),
+                      collapsed: _setupCollapsed,
+                      onToggleCollapsed: () =>
+                          setState(() => _setupCollapsed = !_setupCollapsed),
                       stepLabel: _wizardStepLabel,
                     )
                   else if (_wizardStage != null)

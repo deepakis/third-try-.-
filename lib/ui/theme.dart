@@ -26,6 +26,10 @@ class AppColors {
 
   /// The reading line, and any cue tag in the script.
   static const Color cue = Color(0xFFFF3B30);
+
+  /// A bracketed instruction that does not touch OBS (`[pause]`, `[B-roll]`).
+  /// Blue, so it reads as a note to the presenter rather than a cut.
+  static const Color stageNote = Color(0xFF7DD3FC);
 }
 
 ThemeData buildAppTheme() {

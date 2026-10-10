@@ -129,21 +129,22 @@ class ConnectScreen extends StatefulWidget {
 }
 
 class _ConnectScreenState extends State<ConnectScreen> {
-  late final TextEditingController _paste;
   late final TextEditingController _host;
   late final TextEditingController _port;
   late final TextEditingController _password;
 
+  /// The password field is tucked away: most setups only need the address.
+  /// Opened by the toggle, or straight away when a saved endpoint has one.
+  late bool _showPassword;
   bool _revealPassword = false;
   bool _connecting = false;
   ObsStatus? _result;
-  String? _pasteError;
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initialTarget;
-    _paste = TextEditingController();
+    _showPassword = (initial?.password ?? '').isNotEmpty;
     _host = TextEditingController(text: initial?.host ?? '');
     _port = TextEditingController(
       text: '${initial?.port ?? ConnectionTarget.defaultPort}',
@@ -153,7 +154,6 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   @override
   void dispose() {
-    _paste.dispose();
     _host.dispose();
     _port.dispose();
     _password.dispose();
@@ -169,26 +169,17 @@ class _ConnectScreenState extends State<ConnectScreen> {
     return ConnectionTarget(host: host, port: port, password: _password.text);
   }
 
+  /// The link the app builds from the address. The operator never types or
+  /// pastes it; it is shown only so the address is visibly understood.
+  String? get _link {
+    final target = _typed;
+    if (target == null) return null;
+    return 'obsws://${target.host}:${target.port}';
+  }
+
   /// True when the page itself is the reason a connection cannot work: a secure
   /// page is not allowed to open a plain socket to OBS.
   bool get _onSecurePage => kIsWeb && Uri.base.scheme == 'https';
-
-  void _onPasteChanged(String text) {
-    final target = ConnectionTarget.parse(text);
-    setState(() {
-      if (target != null) {
-        _pasteError = null;
-        _host.text = target.host;
-        _port.text = '${target.port}';
-        _password.text = target.password;
-      } else {
-        _pasteError = text.trim().isEmpty
-            ? null
-            : 'No OBS address in that — it should look like '
-                  'obsws://192.168.1.20:4455/your-password';
-      }
-    });
-  }
 
   Future<void> _connect() async {
     final target = _typed;
@@ -254,9 +245,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'OBS prints what this app needs: Tools → WebSocket Server '
-                    'Settings → Show Connect Info. Paste the line under the QR '
-                    'code, or type the address in yourself.',
+                    'Type the IP address and port OBS is using. The app builds '
+                    'the link itself.',
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.45,
@@ -265,23 +255,17 @@ class _ConnectScreenState extends State<ConnectScreen> {
                   ),
                   const SizedBox(height: 20),
                   if (_onSecurePage) const _SecurePageWarning(),
-                  _PasteField(
-                    controller: _paste,
-                    error: _pasteError,
-                    onChanged: _onPasteChanged,
-                    onSubmitted: (_) => unawaited(_connect()),
-                  ),
-                  const SizedBox(height: 16),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         flex: 5,
                         child: _Field(
-                          label: 'Host',
+                          label: 'IP address',
                           controller: _host,
                           hint: '192.168.1.20',
-                          onChanged: (_) => setState(() => _pasteError = null),
+                          keyboardType: TextInputType.url,
+                          onChanged: (_) => setState(() {}),
                           onSubmitted: (_) => unawaited(_connect()),
                         ),
                       ),
@@ -293,36 +277,54 @@ class _ConnectScreenState extends State<ConnectScreen> {
                           controller: _port,
                           hint: ConnectionTarget.defaultPort.toString(),
                           keyboardType: TextInputType.number,
-                          onChanged: (_) => setState(() => _pasteError = null),
+                          onChanged: (_) => setState(() {}),
                           onSubmitted: (_) => unawaited(_connect()),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  _Field(
-                    label: 'Password',
-                    controller: _password,
-                    hint: 'the one from Show Connect Info',
-                    obscure: !_revealPassword,
-                    onChanged: (_) => setState(() => _pasteError = null),
-                    onSubmitted: (_) => unawaited(_connect()),
-                    trailing: IconButton(
-                      onPressed: () =>
-                          setState(() => _revealPassword = !_revealPassword),
-                      tooltip: _revealPassword
-                          ? 'Hide the password'
-                          : 'Show the password',
-                      icon: Icon(
-                        _revealPassword
-                            ? Icons.visibility_off_rounded
-                            : Icons.visibility_rounded,
-                        size: 18,
+                  const SizedBox(height: 10),
+                  _LinkLine(link: _link),
+                  const SizedBox(height: 4),
+                  if (!_showPassword)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => setState(() => _showPassword = true),
+                        icon: const Icon(Icons.key_rounded, size: 16),
+                        label: const Text(
+                          'OBS has a password',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    const SizedBox(height: 12),
+                    _Field(
+                      label: 'Password',
+                      controller: _password,
+                      hint: 'the one from Show Connect Info',
+                      obscure: !_revealPassword,
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) => unawaited(_connect()),
+                      trailing: IconButton(
+                        onPressed: () =>
+                            setState(() => _revealPassword = !_revealPassword),
+                        tooltip: _revealPassword
+                            ? 'Hide the password'
+                            : 'Show the password',
+                        icon: Icon(
+                          _revealPassword
+                              ? Icons.visibility_off_rounded
+                              : Icons.visibility_rounded,
+                          size: 18,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  _Destination(target: _typed),
+                  ],
                   const SizedBox(height: 20),
                   FilledButton(
                     onPressed: _connecting || _typed == null
@@ -439,54 +441,6 @@ class _SecurePageWarning extends StatelessWidget {
   }
 }
 
-class _PasteField extends StatelessWidget {
-  const _PasteField({
-    required this.controller,
-    required this.onChanged,
-    required this.onSubmitted,
-    this.error,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final ValueChanged<String> onSubmitted;
-  final String? error;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _Label('The line OBS shows'),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          onChanged: onChanged,
-          onSubmitted: onSubmitted,
-          autocorrect: false,
-          enableSuggestions: false,
-          decoration: InputDecoration(
-            hintText: 'obsws://192.168.1.20:4455/your-password',
-            hintStyle: const TextStyle(color: AppColors.muted, fontSize: 13.5),
-            prefixIcon: const Icon(Icons.content_paste_rounded, size: 18),
-            filled: true,
-            fillColor: AppColors.surface,
-            errorText: error,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _Field extends StatelessWidget {
   const _Field({
     required this.label,
@@ -561,21 +515,19 @@ class _Label extends StatelessWidget {
   );
 }
 
-/// Shows the address the fields currently add up to, so a pasted line is
-/// visibly understood (and a mistyped port is visibly wrong) before connecting.
-class _Destination extends StatelessWidget {
-  const _Destination({required this.target});
+/// The link the fields add up to, shown under them so the address is visibly
+/// understood (and a mistyped port is visibly wrong) before connecting.
+class _LinkLine extends StatelessWidget {
+  const _LinkLine({required this.link});
 
-  final ConnectionTarget? target;
+  final String? link;
 
   @override
   Widget build(BuildContext context) {
-    final target = this.target;
     return Text(
-      target == null
-          ? 'Enter a host and a port to continue.'
-          : 'Connecting to ws://${target.host}:${target.port}/'
-                '${target.password.isEmpty ? ' (no password)' : ' (password set)'}',
+      link == null
+          ? 'Enter an IP address and a port to continue.'
+          : 'Link: $link',
       style: const TextStyle(fontSize: 12, color: AppColors.muted),
     );
   }

@@ -61,16 +61,11 @@ address in the switcher's header — the app asks where OBS is, and remembers th
 answer on the machine you paired from (`localStorage` on the web build, a JSON
 file under the config directory on desktop).
 
-OBS hands you everything in one line: **Tools → WebSocket Server Settings → Show
-Connect Info** shows a QR code beside the string it encodes. Paste that line:
-
-```
-obsws://192.168.1.20:4455/hunter2
-```
-
-The same box takes the pre-5.0.0 `obswebsocket|192.168.1.20:4455|hunter2` form, a
-bare `192.168.1.20:4455`, or a host on its own — and the three fields under it
-stay editable, for reading an address off another screen. **Set up later** skips
+Type the **IP address** and **port** OBS is using (`4455` unless you changed it).
+The app builds the `obsws://` link itself and shows it under the fields. If OBS has
+a password, tap **OBS has a password** and enter it; most setups do not need that.
+The address is remembered on the machine you paired from (`localStorage` on the web
+build, a JSON file under the config directory on desktop). **Set up later** skips
 pairing and drops you on the switcher, where the setup banner waits.
 
 Pairing is step 1 of a three-step first run (`1 · Connect to OBS`, `2 · Pick your
@@ -82,13 +77,17 @@ need. Step 2 builds the shots the app already has (`Set up Full + Zoom`), with
 picked their shots is not asked to pick them again. Step 3 is the confirmation
 that they are live. A launch over a rig that already works says none of it.
 
+The setup card's **Minimize setup** button folds it to one line
+(`Your shots are not set up in OBS yet · Show setup`). Folding never removes it:
+the line is always there to open it again.
+
 The header shows `host:port` while connected — tap it to point the app at a
 different OBS — and only says **Connect…** when there is no socket to switch away
 from, which it wrongly did over a working connection.
 
-Nothing decodes the QR code yet. The paste box is the whole input path for now,
-and it parses exactly the string a camera would decode, so a scanner is an
-addition rather than a change of format.
+Nothing decodes the QR code yet, and the pairing screen asks only for the IP and port.
+The parser for the `obsws://` line is still in [lib/obs/connection_target.dart](lib/obs/connection_target.dart),
+so a scanner would be an addition rather than a change of format.
 
 A failed pairing says what to do about it, because "connection failed" is not a
 useful sentence:
@@ -136,7 +135,8 @@ something to cut to.
 
 Prompter: `space` pause/resume, `n` jump to the next cue, `r` restart, arrow keys
 nudge, or drag the script by hand — auto-scroll resumes a second after you let go.
-Speed and text size are live-adjustable in the control bar.
+Speed and text size are live-adjustable in the control bar. The clipboard icon
+loads your own script (see above).
 
 ## Set up OBS
 
@@ -203,10 +203,21 @@ the user's setup, which is why the app configures over the websocket instead.
 | `[CAM 2: ZOOM]` | same as `[CAM 2]` — the detail after the colon is ignored |
 | `[LAYOUT: FULL]` | full-frame shot (first slot) |
 | `[LAYOUT: PIP]` / `SCREEN` / `SHARE` | screen-with-PiP shot (second slot) |
-| anything else | shown in the script, logged as "nothing to switch to", never touches OBS |
+| anything else, e.g. `[pause]` | a note for the presenter: shown in blue, logged as "nothing to switch to", never touches OBS |
 
-Tags stay visible in the script in bold red brackets, because the presenter reads
-past them. A cue fires when its line's centre crosses the reading line, and
+The colon is optional (`[LAYOUT PIP]` works). Cues that drive OBS stay visible in
+the script in bold red brackets, and notes in blue, because the presenter reads
+past them.
+
+### Pasting your own script
+
+The teleprompter starts on a demo script. **Paste a script** (the clipboard icon in
+the prompter's header, or `Paste a script` on the phone) opens a page where you
+paste yours, cues and notes included. Under the text it lists every cut the script
+will make and every note, so a `[CAM 9]` with no camera behind it shows up before
+you go live. **Load into the teleprompter** starts the script from the top; backing
+out keeps the one already on screen. A pasted script lasts for the session and is
+not saved. A cue fires when its line's centre crosses the reading line, and
 re-arms if you scroll back above it, so re-reading a section re-fires the cut.
 
 ## Code map
@@ -330,12 +341,14 @@ All take `OBS_HOST` / `OBS_PORT` / `OBS_PASSWORD` from the environment.
 * **A chosen rig lasts the session, then is read back from OBS.** The selection
   is not persisted anywhere: the switcher adopts whatever rig it finds in OBS on
   connect, which covers a restart, but two rigs in one OBS would need a rule.
-* **Scripts are hard-coded** ([sample_script.dart](lib/teleprompter/sample_script.dart)).
-  Loading a `.txt`/`.md` script and editing it in-app is the obvious next step.
+* **Scripts are pasted, not saved.** A pasted script lasts for the session. Loading
+  a `.txt`/`.md` file and remembering the last script are the obvious next steps.
+  The built-in demo is [sample_script.dart](lib/teleprompter/sample_script.dart).
 * **Mirroring** (flipping the text for a beamsplitter rig) and a countdown lead-in
   are not implemented.
 * [public/index.html](public/index.html) is the phase-1 browser probe that proved
   the protocol before any Flutter existed. Superseded by the app; kept as a
   minimal reference.
-#   t h i r d - t r y - . -  
+#   t h i r d - t r y - . - 
+ 
  

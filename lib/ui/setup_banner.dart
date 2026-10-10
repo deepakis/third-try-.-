@@ -14,6 +14,9 @@ import 'theme.dart';
 /// the framing is what you just picked rather than whatever was left over. The
 /// screen confirms that before anything is deleted.
 ///
+/// The card can be folded to one line with its minimize button and opened
+/// again from that line; it is never removed by that.
+///
 /// Layout notes, because this banner got this wrong once: a from-scratch run
 /// reports a dozen steps, and an unbounded report squeezed the tiles off the
 /// screen in a small window (the embedded preview caught it). The height is now
@@ -30,7 +33,8 @@ class SetupBanner extends StatelessWidget {
     required this.onChooseShots,
     required this.onQuickSetup,
     required this.onReset,
-    required this.onDismiss,
+    required this.onToggleCollapsed,
+    this.collapsed = false,
     this.stepLabel,
   });
 
@@ -47,7 +51,12 @@ class SetupBanner extends StatelessWidget {
   final VoidCallback onChooseShots;
   final VoidCallback onQuickSetup;
   final VoidCallback onReset;
-  final VoidCallback onDismiss;
+  /// Folds the card to a single line and back. The setup is never removed by
+  /// this: a collapsed card still says what is pending and can be opened again.
+  final VoidCallback onToggleCollapsed;
+
+  /// Whether the card is folded to its one-line form.
+  final bool collapsed;
 
   /// Where this banner sits in the first-run wizard, e.g. `Step 2 of 3 · Pick
   /// your shots`. Null when no wizard is running.
@@ -87,6 +96,15 @@ class SetupBanner extends StatelessWidget {
     // buttons say what is happening, and the confirmation spells out exactly
     // what a run deletes.
     final showProse = !compact;
+
+    if (collapsed) {
+      return _collapsedBar(
+        failed: failed,
+        done: done,
+        accent: accent,
+        surface: surface,
+      );
+    }
 
     return Container(
       width: double.infinity,
@@ -288,9 +306,70 @@ class SetupBanner extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: IconButton(
-              onPressed: onDismiss,
-              tooltip: 'Hide',
-              icon: const Icon(Icons.close_rounded, size: 18),
+              onPressed: onToggleCollapsed,
+              tooltip: 'Minimize setup',
+              icon: const Icon(Icons.expand_less_rounded, size: 22),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// The folded card: one line, the headline, and a way back open. Keeps the
+  /// setup visible at a glance without taking the room the cameras need.
+  Widget _collapsedBar({
+    required bool failed,
+    required bool done,
+    required Color accent,
+    required Color surface,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(left: 16, right: 6, top: 4, bottom: 4),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          running
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  failed
+                      ? Icons.error_outline_rounded
+                      : (done
+                            ? Icons.check_circle_rounded
+                            : Icons.bolt_rounded),
+                  size: 18,
+                  color: accent,
+                ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _headline(failed: failed, done: done),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                color: accent,
+              ),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onToggleCollapsed,
+            style: TextButton.styleFrom(foregroundColor: AppColors.ink),
+            icon: const Icon(Icons.expand_more_rounded, size: 18),
+            label: const Text(
+              'Show setup',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ),
         ],

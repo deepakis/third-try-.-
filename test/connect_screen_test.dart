@@ -42,42 +42,31 @@ Future<ObsStatus> Function(ConnectionTarget) answering(
 };
 
 void main() {
-  testWidgets('pasting the line OBS shows fills the fields', (tester) async {
-    await pumpConnect(tester);
-
-    await tester.enterText(
-      find.byType(TextField).first,
-      'obsws://192.168.1.20:4466/hunter2',
-    );
-    await tester.pumpAndSettle();
-
-    // Host, port and password fields, in order.
-    final fields = tester
-        .widgetList<TextField>(find.byType(TextField))
-        .map((field) => field.controller?.text)
-        .toList();
-    expect(fields, ['obsws://192.168.1.20:4466/hunter2', '192.168.1.20', '4466', 'hunter2']);
-    expect(
-      find.textContaining('Connecting to ws://192.168.1.20:4466/'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('prose pasted into the box is rejected with a hint', (
+  testWidgets('only the IP address and port are asked for, and the app builds the link', (
     tester,
   ) async {
     await pumpConnect(tester);
 
-    await tester.enterText(
-      find.byType(TextField).first,
-      'my obs is on the other laptop',
-    );
+    // Two fields, no paste box, no password until it is asked for.
+    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.text('Enter an IP address and a port to continue.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).at(0), '192.168.1.20');
+    await tester.enterText(find.byType(TextField).at(1), '4466');
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('No OBS address in that'), findsOneWidget);
-    // The connect button stays disabled: there is no address to dial.
-    final button = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(button.onPressed, isNull);
+    expect(find.text('Link: obsws://192.168.1.20:4466'), findsOneWidget);
+  });
+
+  testWidgets('the password field opens on request', (tester) async {
+    await pumpConnect(tester);
+
+    expect(find.text('OBS has a password'), findsOneWidget);
+    await tester.tap(find.text('OBS has a password'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TextField), findsNWidgets(3));
+    expect(find.text('OBS has a password'), findsNothing);
   });
 
   testWidgets('a wrong password is named as one, with the fix', (tester) async {
@@ -96,9 +85,12 @@ void main() {
       onConnected: (target) => paired = target,
     );
 
-    await tester.enterText(find.byType(TextField).first, '192.168.1.20:4455');
+    await tester.enterText(find.byType(TextField).at(0), '192.168.1.20');
+    await tester.enterText(find.byType(TextField).at(1), '4455');
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).at(3), 'wrong-password');
+    await tester.tap(find.text('OBS has a password'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(2), 'wrong-password');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
@@ -124,7 +116,8 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField).first, '192.168.1.20:4455');
+    await tester.enterText(find.byType(TextField).at(0), '192.168.1.20');
+    await tester.enterText(find.byType(TextField).at(1), '4455');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
@@ -149,7 +142,8 @@ void main() {
       ),
     );
 
-    await tester.enterText(find.byType(TextField).first, '10.82.181.253:4455');
+    await tester.enterText(find.byType(TextField).at(0), '10.82.181.253');
+    await tester.enterText(find.byType(TextField).at(1), '4455');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
@@ -170,10 +164,11 @@ void main() {
       onConnected: (target) => paired = target,
     );
 
-    await tester.enterText(
-      find.byType(TextField).first,
-      'obsws://10.0.0.5:4959/hunter2',
-    );
+    await tester.enterText(find.byType(TextField).at(0), '10.0.0.5');
+    await tester.enterText(find.byType(TextField).at(1), '4959');
+    await tester.tap(find.text('OBS has a password'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(2), 'hunter2');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Connect'));
     await tester.pumpAndSettle();
@@ -227,13 +222,13 @@ void main() {
       initial: const ConnectionTarget(host: '127.0.0.1', password: 'hunter2'),
     );
 
-    final field = tester.widget<TextField>(find.byType(TextField).at(3));
+    final field = tester.widget<TextField>(find.byType(TextField).at(2));
     expect(field.obscureText, isTrue);
 
     await tester.tap(find.byIcon(Icons.visibility_rounded));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(find.byType(TextField).at(3)).obscureText, isFalse);
+    expect(tester.widget<TextField>(find.byType(TextField).at(2)).obscureText, isFalse);
   });
 
   testWidgets('the advice names the fix for a blocked ws:// on https', (

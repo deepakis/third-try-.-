@@ -9,6 +9,7 @@ import '../app_config.dart';
 import '../obs/obs_client.dart';
 import '../obs/obs_models.dart';
 import '../ui/theme.dart';
+import 'paste_script_page.dart';
 import 'sample_script.dart';
 import 'script_model.dart';
 
@@ -45,7 +46,7 @@ class _TeleprompterScreenState extends State<TeleprompterScreen>
     with SingleTickerProviderStateMixin {
   static const EdgeInsets _scriptPadding = EdgeInsets.fromLTRB(32, 140, 32, 200);
 
-  late final ScriptDocument _doc;
+  late ScriptDocument _doc;
   late final Ticker _ticker;
   final ScrollController _scroll = ScrollController();
   final GlobalKey _viewportKey = GlobalKey();
@@ -67,6 +68,9 @@ class _TeleprompterScreenState extends State<TeleprompterScreen>
   ScriptCue? _nextCue;
   String _log = 'scrolling — cues fire at the red line';
   String? _programScene;
+
+  /// The text behind [_doc], kept so the paste page opens with it.
+  late String _scriptText = widget.script;
 
   @override
   void initState() {
@@ -94,6 +98,51 @@ class _TeleprompterScreenState extends State<TeleprompterScreen>
       // so pick up the live program scene here.
       if (widget.connection.status.isConnected) unawaited(_syncProgramScene());
     });
+  }
+
+  /// Opens the paste page and, if something was loaded, starts the prompter on
+  /// the new script from the top.
+  Future<void> _pasteScript() async {
+    // Stop scrolling while the paste page is open: the presenter is typing,
+    // not reading.
+    final wasPlaying = _playing;
+    setState(() => _playing = false);
+    final text = await PasteScriptPage.open(
+      context,
+      slots: widget.slots,
+      initialText: _scriptText,
+    );
+    if (!mounted) return;
+    if (text == null) {
+      // Backed out without loading: pick the script up where it was.
+      setState(() => _playing = wasPlaying);
+      return;
+    }
+    _loadScript(text);
+  }
+
+  /// Replaces the script on screen. Cues are re-read from the new text, the
+  /// fired-cue memory is cleared, and the script goes back to the top.
+  void _loadScript(String text) {
+    _scriptText = text;
+    _doc = parseScript(
+      text,
+      widget.slots,
+      title: text == demoScript ? widget.title : 'Pasted script',
+    );
+    _lineKeys
+      ..clear()
+      ..addAll({for (final line in _doc.lines) line.index: GlobalKey()});
+    _firedLines.clear();
+    final cueCount = _doc.cues.where((cue) => cue.hasAction).length;
+    setState(() {
+      _activeCue = null;
+      _nextCue = null;
+      _playing = true;
+      _log = cueCount == 1 ? 'loaded · 1 cue' : 'loaded · $cueCount cues';
+    });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _evaluateCues());
   }
 
   /// OBS only pushes scene changes as events, so the header needs one read to
@@ -331,6 +380,7 @@ class _TeleprompterScreenState extends State<TeleprompterScreen>
                   title: _doc.title,
                   programScene: _programScene,
                   onBack: () => Navigator.of(context).maybePop(),
+                  onPaste: _pasteScript,
                 ),
                 Expanded(
                   child: Stack(
@@ -433,11 +483,13 @@ class _PrompterHeader extends StatelessWidget {
     required this.title,
     required this.programScene,
     required this.onBack,
+    required this.onPaste,
   });
 
   final String title;
   final String? programScene;
   final VoidCallback onBack;
+  final VoidCallback onPaste;
 
   @override
   Widget build(BuildContext context) {
@@ -478,36 +530,49 @@ class _PrompterHeader extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColors.prompterSurface,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.prompterBorder),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: AppColors.cue,
-                    shape: BoxShape.circle,
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: onPaste,
+            tooltip: 'Paste a script',
+            color: AppColors.prompterText,
+            icon: const Icon(Icons.content_paste_rounded, size: 20),
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColors.prompterSurface,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppColors.prompterBorder),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.cue,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'OBS · ${programScene ?? '—'}',
-                  style: const TextStyle(
-                    color: AppColors.prompterText,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'OBS · ${programScene ?? '—'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.prompterText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -595,7 +660,9 @@ class _CueChip extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 220),
             child: Text(
-              cue == null ? '—' : '${cue!.tag}  ·  ${cue!.label}',
+              cue == null
+                  ? '—'
+                  : '${cue!.tag}  ·  ${cue!.hasAction ? cue!.label : 'note'}',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -647,7 +714,11 @@ class _ScriptLineView extends StatelessWidget {
                 width: 4,
                 height: fontSize * 0.95,
                 decoration: BoxDecoration(
-                  color: AppColors.cue.withValues(alpha: isActiveLine ? 1 : 0.55),
+                  color: line.cues.any((cue) => cue.hasAction)
+                      ? AppColors.cue.withValues(
+                          alpha: isActiveLine ? 1 : 0.55,
+                        )
+                      : AppColors.stageNote.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -669,14 +740,20 @@ class _ScriptLineView extends StatelessWidget {
           TextSpan(text: line.text.substring(cursor, match.start)),
         );
       }
+      // Cues that drive OBS are red. Any other bracket is an instruction for
+      // the presenter, so it is blue and stays out of the way of the cuts.
+      final tag = match.group(1)?.trim() ?? '';
+      final drivesObs = line.cues.any((cue) => cue.tag == tag && cue.hasAction);
+      final accent = drivesObs ? AppColors.cue : AppColors.stageNote;
       spans.add(
         TextSpan(
           text: match.group(0),
           style: TextStyle(
-            color: AppColors.cue,
+            color: accent,
             fontWeight: FontWeight.w800,
+            fontSize: fontSize * 0.82,
             letterSpacing: 0.5,
-            backgroundColor: AppColors.cue.withValues(alpha: 0.12),
+            backgroundColor: accent.withValues(alpha: 0.12),
           ),
         ),
       );
