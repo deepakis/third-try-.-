@@ -98,8 +98,18 @@ void main() {
     await obs.connect();
     await tester.pump();
 
-    await tester.tap(find.byTooltip('Paste a script'));
+    // Call the header button's handler directly: the gesture itself is not what
+    // this test is about, and the page must open from it.
+    final paste = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.content_paste_rounded),
+        matching: find.byType(IconButton),
+      ),
+    );
+    paste.onPressed!();
     await _settle(tester);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(PasteScriptPage), findsOneWidget);
     await tester.enterText(
       find.byType(TextField),
       '${_filler}New script with a cut.\n[CAM 2]\nafter',
