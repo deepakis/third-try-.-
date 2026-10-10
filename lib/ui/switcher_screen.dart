@@ -51,7 +51,16 @@ class SwitcherScreen extends StatefulWidget {
     this.onPair,
     this.endpoint,
     this.wizard = WizardMode.off,
+    this.onOpenPrompter,
+    this.onSlotsChanged,
   });
+
+  /// Opens the prompter. When the switcher lives in the app shell this switches
+  /// to the Prompter page; without it the prompter opens as a route of its own.
+  final VoidCallback? onOpenPrompter;
+
+  /// Told whenever the shots on screen change, so the other pages follow.
+  final ValueChanged<List<CameraSlot>>? onSlotsChanged;
 
   final List<CameraSlot> slots;
 
@@ -219,9 +228,12 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
     if (adopted.isEmpty) return false;
     if (_sameScenes(adopted, _slots)) return false;
     _slots = adopted;
+    _publishSlots();
     _log('using the rig already in OBS: ${_labelList(adopted)}');
     return true;
   }
+
+  void _publishSlots() => widget.onSlotsChanged?.call(List.of(_slots));
 
   bool _sameScenes(List<CameraSlot> a, List<CameraSlot> b) {
     if (a.length != b.length) return false;
@@ -440,6 +452,7 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
     if (!await _confirmRebuild(next)) return;
     setState(() {
       _slots = next;
+      _publishSlots();
       _userPickedRig = true;
       _setupCollapsed = false;
       _previews.clear();
@@ -545,6 +558,11 @@ class _SwitcherScreenState extends State<SwitcherScreen> {
   }
 
   void _openTeleprompter() {
+    final open = widget.onOpenPrompter;
+    if (open != null) {
+      open();
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) =>

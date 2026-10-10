@@ -27,12 +27,17 @@ class TeleprompterScreen extends StatefulWidget {
     this.title = 'Two-camera rig · demo',
     this.initialSpeed = 46,
     this.initialFontSize = 30,
+    this.embedded = false,
   });
 
   final ObsConnection connection;
   final List<CameraSlot> slots;
   final String script;
   final String title;
+
+  /// True when this is a page inside the app's shell rather than a route of its
+  /// own: there is nothing to go back to, so the back arrow is left out.
+  final bool embedded;
 
   /// Scroll speed in logical pixels per second.
   final double initialSpeed;
@@ -71,6 +76,27 @@ class _TeleprompterScreenState extends State<TeleprompterScreen>
 
   /// The text behind [_doc], kept so the paste page opens with it.
   late String _scriptText = widget.script;
+
+  @override
+  void didUpdateWidget(covariant TeleprompterScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The shots changed under the script (a rebuild, or a different rig in
+    // OBS): re-read the cues against them, keeping the place and the text.
+    if (!_sameSlots(oldWidget.slots, widget.slots)) {
+      _doc = parseScript(_scriptText, widget.slots, title: _doc.title);
+      _firedLines.clear();
+      setState(() {});
+      WidgetsBinding.instance.addPostFrameCallback((_) => _evaluateCues());
+    }
+  }
+
+  static bool _sameSlots(List<CameraSlot> a, List<CameraSlot> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].sceneName != b[i].sceneName) return false;
+    }
+    return true;
+  }
 
   @override
   void initState() {
@@ -379,7 +405,9 @@ class _TeleprompterScreenState extends State<TeleprompterScreen>
                 _PrompterHeader(
                   title: _doc.title,
                   programScene: _programScene,
-                  onBack: () => Navigator.of(context).maybePop(),
+                  onBack: widget.embedded
+                      ? null
+                      : () => Navigator.of(context).maybePop(),
                   onPaste: _pasteScript,
                 ),
                 Expanded(
@@ -488,7 +516,9 @@ class _PrompterHeader extends StatelessWidget {
 
   final String title;
   final String? programScene;
-  final VoidCallback onBack;
+
+  /// Null on an embedded page, where there is no route to return to.
+  final VoidCallback? onBack;
   final VoidCallback onPaste;
 
   @override
@@ -497,12 +527,15 @@ class _PrompterHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(12, 10, 20, 6),
       child: Row(
         children: [
-          IconButton(
-            onPressed: onBack,
-            tooltip: 'Back to the switcher',
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          ),
-          const SizedBox(width: 4),
+          if (onBack != null) ...[
+            IconButton(
+              onPressed: onBack,
+              tooltip: 'Back to the switcher',
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 4),
+          ] else
+            const SizedBox(width: 16),
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

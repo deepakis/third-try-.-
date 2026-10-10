@@ -6,8 +6,8 @@ import 'app_config.dart';
 import 'obs/connection_target.dart';
 import 'obs/endpoint_store.dart';
 import 'obs/obs_client.dart';
-import 'teleprompter/teleprompter_screen.dart';
 import 'ui/connect_screen.dart';
+import 'ui/home_shell.dart';
 import 'ui/switcher_screen.dart';
 import 'ui/theme.dart';
 
@@ -158,23 +158,25 @@ class _OpenFlutterAppState extends State<OpenFlutterApp> {
       );
     }
     final key = ValueKey(_connectionSeq);
-    return AppConfig.startOnPrompter
-        ? TeleprompterScreen(key: key, connection: obs)
-        : SwitcherScreen(
-            key: key,
-            connection: obs,
-            endpoint: _active?.label,
-            // Pairing earns the whole walkthrough. Coming back to an endpoint
-            // paired earlier only earns step 2, and only if the rig is missing
-            // — the switcher decides that once OBS has answered. "Set up
-            // later" earns nothing: that was someone asking not to be walked
-            // through it.
-            wizard: switch ((_wizardPending, _paired != null)) {
-              (true, _) => WizardMode.pairing,
-              (false, true) => WizardMode.ifMissing,
-              (false, false) => WizardMode.off,
-            },
-            onPair: () => setState(() => _pairing = true),
-          );
+    return HomeShell(
+      key: key,
+      connection: obs,
+      endpoint: _active?.label,
+      // Pairing earns the whole walkthrough. Coming back to an endpoint
+      // paired earlier only earns step 2, and only if the rig is missing
+      // — the switcher decides that once OBS has answered. "Set up
+      // later" earns nothing: that was someone asking not to be walked
+      // through it.
+      wizard: switch ((_wizardPending, _paired != null)) {
+        (true, _) => WizardMode.pairing,
+        (false, true) => WizardMode.ifMissing,
+        (false, false) => WizardMode.off,
+      },
+      onPair: () => setState(() => _pairing = true),
+      // START_SCREEN=prompter still opens straight onto the prompter.
+      initialIndex: AppConfig.startOnPrompter
+          ? HomeShell.prompterPage
+          : HomeShell.camerasPage,
+    );
   }
 }

@@ -138,10 +138,44 @@ nudge, or drag the script by hand — auto-scroll resumes a second after you let
 Speed and text size are live-adjustable in the control bar. The clipboard icon
 loads your own script (see above).
 
+## Three pages
+
+The app opens onto a bar with three pages (a side rail on a wide window):
+
+| Page | What it is for |
+| --- | --- |
+| **Cameras** | The switcher: one tile per shot, the cut, and the first-run setup card |
+| **Prompter** | The teleprompter. Loads the demo, or your own script via the clipboard icon |
+| **Setup** | The OBS connection (status, Reconnect, Change OBS), and the keys and cue tags |
+
+The pages stay alive when you switch: a half-finished setup or a scrolled script is
+still there when you come back. A hidden prompter does not scroll or fire cues. The
+Prompter re-reads its cues when you change the shots on the Cameras page.
+[lib/ui/home_shell.dart](lib/ui/home_shell.dart) holds the bar,
+[lib/ui/setup_page.dart](lib/ui/setup_page.dart) the third page.
+
+## Get the Android APK from GitHub
+
+You do not need Flutter or Android tools to get the APK. GitHub builds it: the
+workflow in [.github/workflows/android-apk.yml](.github/workflows/android-apk.yml)
+runs on every push to `main` or an `arena/` branch, and:
+
+* publishes a **prerelease** named `apk-<run number>` on the Releases page, with the
+  APK attached. Open that page on the phone and download it;
+* keeps the same APK as a run artifact (**Actions → Android APK → Artifacts**).
+
+Install it by opening the file and allowing installs from that source. The build runs
+`flutter analyze` and `flutter test` first, so a broken commit produces no APK; the
+failing test is listed as an annotation on the run.
+
+[tool/patch_android_manifest.py](tool/patch_android_manifest.py) prepares the Android
+project GitHub generates (the INTERNET permission a release build lacks, plain
+`ws://` to OBS on the LAN, the app name). The steps below do the same by hand.
+
 ## Build it for a phone
 
-The repo has no `android/` or `ios/` folders yet, so generate them once (this
-keeps `lib/` and `pubspec.yaml` as they are):
+The repo has no `android/` or `ios/` folders, so the CI generates them. To build
+locally, generate them once (this keeps `lib/` and `pubspec.yaml` as they are):
 
 ```bash
 flutter create --platforms=android,ios --project-name open_flutter .
