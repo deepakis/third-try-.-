@@ -11,8 +11,12 @@ Future<FakeObsConnection> pumpShell(WidgetTester tester, Size size) async {
     scenes: [scene('Full_Cam', 0), scene('Zoom_Cam', 1)],
     programScene: 'Full_Cam',
   );
-  await tester.binding.setSurfaceSize(size);
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  // Test views default to a 3x pixel ratio, which would make a 420-wide phone
+  // only 140 logical pixels wide. Size in logical pixels, as a real phone is.
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = size;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
       theme: buildAppTheme(),
