@@ -1,0 +1,87 @@
+name: Android APK
+
+# Builds an installable Android APK on GitHub's servers, so no Android SDK is
+# needed on a laptop. Every push to main or an arena/ branch produces one, as a
+# downloadable run artifact and as a prerelease on the Releases page.
+
+on:
+  push:
+    branches:
+      - main
+      - 'arena/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17 (Android Gradle Plugin needs it)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate the Android project
+        # The repo has no android/ folder yet; this creates it without touching
+        # lib/, test/ or pubspec.yaml.
+        run: |
+          flutter create --platforms=android --project-name open_flutter --org com.deepakis --no-pub .
+
+      - name: Prepare the Android manifest (INTERNET, LAN ws://, app name)
+        run: python3 tool/patch_android_manifest.py
+
+      - name: Fetch packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      - name: Build the APK
+        run: flutter build apk --release
+
+      - name: Name the APK
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr '+' '-')
+          cp build/app/outputs/flutter-apk/app-release.apk "open-flutter-${VERSION}-${GITHUB_RUN_NUMBER}.apk"
+          echo "APK_FILE=open-flutter-${VERSION}-${GITHUB_RUN_NUMBER}.apk" >> "$GITHUB_ENV"
+
+      - name: Upload as a run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-flutter-apk
+          path: ${{ env.APK_FILE }}
+          if-no-files-found: error
+
+      - name: Publish a prerelease with the APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="apk-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" "$APK_FILE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Open Flutter APK #${GITHUB_RUN_NUMBER} (${GITHUB_REF_NAME})" \
+            --notes "Built from \`${GITHUB_SHA::7}\` on \`${GITHUB_REF_NAME}\`. Install on an Android phone by opening the APK (allow installs from this source)."
