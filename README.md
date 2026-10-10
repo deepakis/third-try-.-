@@ -138,6 +138,54 @@ nudge, or drag the script by hand — auto-scroll resumes a second after you let
 Speed and text size are live-adjustable in the control bar. The clipboard icon
 loads your own script (see above).
 
+## Build it for a phone
+
+The repo has no `android/` or `ios/` folders yet, so generate them once (this
+keeps `lib/` and `pubspec.yaml` as they are):
+
+```bash
+flutter create --platforms=android,ios --project-name open_flutter .
+```
+
+**Android APK** (install on a phone, or sideload it):
+
+```bash
+flutter build apk --release
+# -> build/app/outputs/flutter-apk/app-release.apk
+```
+
+Before that build, open `android/app/src/main/AndroidManifest.xml` and make sure
+this line sits above `<application>`. The debug template has it; a release build
+without it cannot reach OBS:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+If the phone still cannot reach OBS on Wi-Fi, add `android:usesCleartextTraffic="true"`
+to the `<application>` tag. The socket is plain `ws://` to your LAN, not the internet.
+
+**iPhone** (needs a Mac with Xcode):
+
+```bash
+flutter build ipa --release
+```
+
+In `ios/Runner/Info.plist`, add a local-network reason, or iOS silently blocks the
+connection to OBS:
+
+```xml
+<key>NSLocalNetworkUsageDescription</key>
+<string>Connects to OBS Studio on your network to switch scenes.</string>
+```
+
+The phone must be on the same Wi-Fi as the OBS machine, and the address you type is
+that machine's LAN IP, not `127.0.0.1`.
+
+**Installable web app** (no store, no build tools beyond Flutter): `flutter build web`,
+serve `build/web` over `http://` on the LAN, then use the browser's *Add to Home
+Screen*. Browsers refuse a `ws://` socket from an `https://` page, so keep it on `http://`.
+
 ## Set up OBS
 
 Point the app at an OBS that has never seen it and the switcher offers a
